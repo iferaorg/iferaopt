@@ -1,1 +1,31 @@
 megalinter-reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+
+# Data (large files, not committed)
+data/raw/
+data/processed/
+*.parquet
+*.zarr/
+*.pt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# pytest
+.pytest_cache/
+
+# DVC
+.dvc/cache/
