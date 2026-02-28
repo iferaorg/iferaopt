@@ -2,9 +2,11 @@
 
 ## Project Overview
 
-**iferaopt** is a GPU-accelerated walk-forward optimization system for a 0DTE SPX
-put credit spread strategy using Opening Range Breakout signals. The codebase is
-Python (3.10+) with PyTorch/CUDA, scikit-learn, and Parquet/Zarr data storage.
+**iferaopt** is a GPU-accelerated walk-forward optimization system for 0DTE
+option strategies (primarily SPX put credit spreads) using Opening Range Breakout
+signals. The storage and data layers support multiple symbols so the system can
+be extended to other underlyings in the future. The codebase is Python (3.10+)
+with PyTorch/CUDA, scikit-learn, and Parquet/Zarr data storage.
 
 ## Repository Layout
 
@@ -12,6 +14,7 @@ Python (3.10+) with PyTorch/CUDA, scikit-learn, and Parquet/Zarr data storage.
 iferaopt/          # Main source package
 tests/             # Pytest test suite
 data/              # Local data (raw + processed), not committed to git
+                   #   Partitioned by symbol and date (Hive-style)
 planning_discussion.txt  # Full design discussion (read for context)
 TODO.md            # Project roadmap
 ```

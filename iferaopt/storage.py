@@ -238,8 +238,14 @@ def query_duckdb(
 ) -> "pandas.DataFrame":
     """Run an arbitrary SQL query via DuckDB and return a pandas DataFrame.
 
-    If *base_dir* is given the query may reference it via ``{base_dir}`` — a
-    convenience so callers don't have to f-string paths manually.
+    Parameters
+    ----------
+    sql:
+        SQL query string.  May contain the literal ``{base_dir}`` which will
+        be replaced by *base_dir* when that argument is not ``None``.
+    base_dir:
+        Optional path to substitute into the query.  When ``None`` the query
+        is executed as-is (no substitution takes place).
 
     Example::
 

@@ -1,7 +1,7 @@
 [project]
 name = "iferaopt"
 version = "0.1.0"
-description = "0DTE SPX option strategy optimizer with GPU-accelerated walk-forward analysis"
+description = "0DTE option strategy optimizer with GPU-accelerated walk-forward analysis"
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]

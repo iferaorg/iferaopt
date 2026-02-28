@@ -109,9 +109,10 @@ class TestZarrRoundTrip:
     """save_zarr_tensors → load_zarr_tensors."""
 
     def test_save_and_load(self, tmp_path: Path) -> None:
+        rng = np.random.default_rng(42)
         arrays = {
-            "bars": np.random.rand(390, 5).astype(np.float32),
-            "chain": np.random.rand(50, 8).astype(np.float32),
+            "bars": rng.random((390, 5), dtype=np.float32),
+            "chain": rng.random((50, 8), dtype=np.float32),
         }
         save_zarr_tensors(arrays, tmp_path, symbol="SPX", date_str="20250103")
         loaded = load_zarr_tensors(tmp_path, symbol="SPX", date_str="20250103")
