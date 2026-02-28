@@ -1,0 +1,26 @@
+# Core dependencies
+numpy
+pandas
+torch
+scipy
+scikit-learn
+optuna
+
+# Data storage
+pyarrow
+zarr
+numcodecs
+duckdb
+polars
+
+# Data acquisition
+requests
+tqdm
+
+# Testing
+pytest
+
+# Code quality
+black
+pylint
+pyright
