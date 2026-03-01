@@ -1,15 +1,15 @@
 # TODO — iferaopt
 
 ## Step 1: Storage Layer
-- [ ] Implement Parquet read/write helpers with Hive partitioning
-- [ ] Implement Zarr tensor save/load for GPU-ready data
-- [ ] Add DuckDB/Polars query utilities for exploration
+- [x] Implement Parquet read/write helpers with Hive partitioning (symbol + date)
+- [x] Implement Zarr tensor save/load for GPU-ready data (symbol + date)
+- [x] Add DuckDB/Polars query utilities for exploration
 - [ ] Set up DVC for data version control (optional)
 
 ## Step 2: Data Acquisition & Preprocessing
-- [ ] Implement ThetaData REST API client for fetching historical SPX option quotes
-- [ ] Build intraday 1-min OHLC pipeline for SPX (9:30–16:00 ET)
-- [ ] Store raw data as Hive-partitioned Parquet (zstd) under `data/raw/`
+- [ ] Implement ThetaData REST API client for fetching historical option quotes (multi-symbol capable)
+- [ ] Build intraday 1-min OHLC pipeline (9:30–16:00 ET), starting with SPX
+- [ ] Store raw data as Hive-partitioned Parquet (zstd) under `data/raw/`, partitioned by symbol and date
 - [ ] Compute 60-minute Opening Range (OR) per trading day
 - [ ] Detect first post-10:30 breakout above OR High
 - [ ] Fetch option chain at entry (bid/ask, delta, IV) for candidate strikes
