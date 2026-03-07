@@ -915,4 +915,88 @@ Optional upgrade path: If you ever go multi-GPU or cloud, the exact same Parquet
 
 This is the battle-tested, zero-regret setup used in modern options backtesting pipelines (QuantRocket, custom data lakes, RAPIDS quant stacks). It will make your monthly recalibrations blazing fast, eliminate re-calculation waste, and keep everything perfectly reproducible as your 0DTE edge evolves.
 Implement the folder structure and the two write_dataset / Zarr save functions first — you’ll immediately feel the difference on the next WFO run. If you want the full preprocess.py skeleton with these integrated, or DVC config examples, just say the word. This is production-ready local storage for exactly your system.
+##
+A bit of a technical question about thetadata API. I'm looking to use data in 1m intervals. The options quote (and the underlying index quote) API provides the quote in standard market quote, where the given timestamp corresponds to the beginning (open) of the quote. The greeks/implied vol APIs provide data in a snapshot, so the given timestamp corresponds to what the values were at that given time. If we want to avoid look-ahead issues in the backtests than we should combine these based on what data was available at any given point, meaning combine the greeks/implied vol snapshots with the previous minute quote.
+What's the best way store these in the Parquet files? Separate table for each API, or a combined table?
+##
+Separate tables per API endpoint for the raw data. This is the cleanest, most maintainable, and safest approach for your exact constraints (1-minute intervals, different timestamp semantics, strict no-lookahead, and downstream GPU tensor creation).
+Why Separate Tables (Not One Combined Table) for Raw Storage
+
+Different native schemas and timestamp meanings
+Quotes (and underlying) are interval-based with timestamp = start of the minute (the “open” of that 1-minute bucket).
+Greeks / IV are true snapshots with timestamp = exact moment the value was calculated.
+Storing them in one table would force you to either duplicate columns, add a lot of nulls, or invent artificial alignment logic at ingestion time — all of which complicates raw ingestion and makes debugging harder.
+Incremental fetching & re-processing
+You can re-pull or re-process just the greeks/IV for a bad day without touching the massive quote files. ThetaData bulk endpoints are fast but not free; separate storage lets you be surgical.
+Parquet columnar efficiency
+When you later load only quotes for a window (or only greeks), Parquet predicate pushdown and column pruning are perfect. A single mega-table with 100+ columns wastes I/O and RAM.
+Future-proof
+If ThetaData adds new endpoints (higher-order greeks, trade greeks, OI snapshots, etc.), you just add another subfolder. No schema migration pain.
+No look-ahead risk at storage level
+The raw files stay exactly as the API returned them. All alignment logic lives in one place: your preprocessing script (where it belongs and can be versioned in DVC).
+
+Recommended Raw Folder Structure (Extend What We Already Have)
+Bashdata/raw/thetadata/
+├── quotes/                  # bid/ask, size, last, etc. — timestamp = minute start
+│   └── date=20230103/
+│       └── part-0.parquet
+├── greeks/                  # delta, gamma, theta, vega, rho, etc. — exact snapshot time
+│   └── date=20230103/
+├── iv/                      # implied vol (if separate endpoint)
+├── underlying/              # SPX index quotes (same timestamp semantics as quotes)
+└── ... (any new endpoints)
+Use the exact same ds.write_dataset(..., partitioning=ds.partitioning(field_names=["date"]), format="parquet", compression="zstd") pattern for each endpoint. Just change the base_dir and the DataFrame you pass in.
+How to Align Them Correctly During Preprocessing (The Only Place Alignment Happens)
+In your daily preprocessing loop (the same script that builds the Zarr tensors), do a time-as-of merge:
+Pythonimport pandas as pd
+from pathlib import Path
+
+def build_aligned_daily(date_str: str):
+    # Load raw (only this day)
+    q = pd.read_parquet(f"data/raw/thetadata/quotes/date={date_str}")
+    g = pd.read_parquet(f"data/raw/thetadata/greeks/date={date_str}")
+    # underlying if needed...
+    
+    # Ensure datetime index, floored to minute for quotes
+    q['ts'] = pd.to_datetime(q['timestamp'], unit='ms').dt.floor('1min')
+    g['ts'] = pd.to_datetime(g['timestamp'], unit='ms')
+    
+    # Critical: merge greeks onto the PREVIOUS minute's quote
+    # (this is the no-lookahead step)
+    aligned = pd.merge_asof(
+        g.sort_values('ts'),
+        q.sort_values('ts'),
+        on='ts',
+        direction='backward',   # use the quote from the previous minute
+        tolerance=pd.Timedelta('59s')  # safety
+    )
+    
+    # Now aligned has: quote columns from t-1min + greeks/IV exactly at t
+    # Drop any rows where we couldn't find a prior quote (rare)
+    aligned = aligned.dropna(subset=['bid', 'ask'])  # or whatever quote columns you need
+    
+    # Save the aligned version (optional but very useful)
+    aligned.to_parquet(f"data/processed/aligned/date={date_str}.parquet", compression="zstd")
+    
+    # Then build your GPU tensor directly from this aligned DF
+    # (strike-level chain with correct quote + greeks at each snapshot)
+    return aligned
+This runs in <2 seconds per day and guarantees zero look-ahead: any decision you make at time t only ever sees the quote that was available before the greeks snapshot arrived.
+What About Storing the Aligned Data?
+You have two excellent options (both work with your existing Zarr + Parquet plan):
+
+Preferred: Keep only the raw separate tables + Zarr tensors
+Build the aligned DataFrame in memory during preprocessing, immediately turn it into the daily Zarr tensor (bars + full chain with aligned quote + greeks), and discard the intermediate aligned Parquet unless you need it for debugging.
+This is the most storage-efficient and what 90% of production pipelines do.
+Keep the aligned Parquet as well (highly recommended for your workflow)
+It becomes your “single source of truth” for any ad-hoc analysis or if you ever change the alignment rule.
+Partition it the same way: data/processed/aligned/date=YYYYMMDD/.
+Your WFO and GPUBacktester can load directly from here (or from Zarr) — zero extra work.
+
+Quick Decision Table for You
+
+LayerStorageWhyRaw quotesSeparate ParquetNative API formatRaw greeks/IVSeparate ParquetDifferent timestamp semanticsAligned snapshotOptional ParquetDebugging + queriesFinal GPU tensorsZarr (daily or monthly chunks)Your CUDA backtester
+This is exactly how professional options quant teams (and the big data lakes at firms using ThetaData) structure multi-endpoint historical data. It costs almost nothing extra in storage or code and completely eliminates any risk of accidentally using future quotes with current greeks.
+Implement the separate raw folders first (one extra write_dataset call per endpoint), then add the pd.merge_asof block in your preprocessing script. Your next WFO run will be perfectly clean and reproducible.
+If you paste the column names or a sample response from each endpoint, I can give you the exact merge_asof + tensor-building code ready to drop in. This keeps everything rock-solid for your 0DTE ORB system.
 
